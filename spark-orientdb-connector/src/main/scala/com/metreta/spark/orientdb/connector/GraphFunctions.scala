@@ -39,6 +39,7 @@ class GraphFunctions[V, E](graph: Graph[V, E]) extends Serializable with Logging
         }
       )
     }).reduceByKey(_ + _)
+    vertices.persist()
 
     val mappedEdges = graph.edges.map { edge => (edge.srcId, (edge.dstId, edge.attr)) }
       .join {
@@ -48,9 +49,10 @@ class GraphFunctions[V, E](graph: Graph[V, E]) extends Serializable with Logging
       vertices
     }.map { case (idt, (((idf, vf), attr), vt)) => (vf, vt, attr) }
 
-    val edges = mappedEdges.map {
-      case (vertexFrom, vertexTo, attr) =>
-        ograph = connector.databaseGraphTx()
+
+    val edges = mappedEdges.mapPartitions(edp => {
+      ograph = connector.databaseGraphTx()
+      edp.map({ case (vertexFrom, vertexTo, attr) =>
         val from = ograph.getVertex(vertexFrom)
         val to = ograph.getVertex(vertexTo)
         var retry = 0
@@ -74,8 +76,8 @@ class GraphFunctions[V, E](graph: Graph[V, E]) extends Serializable with Logging
               to.reload()
           }
         }
-    }
-    println("Saved to OrientDB: " + vertices.count() + " vertices and " + edges.count() + " edges")
+      })
+    })
   }
 
   /**
