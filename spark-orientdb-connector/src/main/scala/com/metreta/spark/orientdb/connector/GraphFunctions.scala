@@ -49,10 +49,12 @@ class GraphFunctions[V, E](graph: Graph[V, E]) extends Serializable with Logging
       vertices
     }.map { case (idt, (((idf, vf), attr), vt)) => (vf, vt, attr) }
 
+    vertices.unpersist()
+    mappedEdges.persist()
 
-    val edges = mappedEdges.mapPartitions(edp => {
+    mappedEdges.foreachPartition(edp => {
       ograph = connector.databaseGraphTx()
-      edp.map({ case (vertexFrom, vertexTo, attr) =>
+      edp.foreach({ case (vertexFrom, vertexTo, attr) =>
         val from = ograph.getVertex(vertexFrom)
         val to = ograph.getVertex(vertexTo)
         var retry = 0
